@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consumer Financial Complaints Analytics Dashboard</title>
+    
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --accent: #3b82f6;
+            --danger: #ef4444;
+            --success: #10b981;
+            --sidebar-bg: #111827;
+            --sidebar-text: #f9fafb;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #111827;
+            --card-bg: #1f2937;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --border-color: #374151;
+            --primary: #3b82f6;
+            --primary-hover: #60a5fa;
+            --sidebar-bg: #0f172a;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        
+        body { background-color: var(--bg-color); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; transition: var(--transition); }
+
+        /* Typography */
+        h1, h2, h3 { color: var(--text-main); font-weight: 600; }
+        .text-sm { font-size: 0.875rem; }
+        .text-muted { color: var(--text-muted); }
+
+        /* Sidebar */
+        .sidebar { width: 250px; background-color: var(--sidebar-bg); color: var(--sidebar-text); display: flex; flex-direction: column; transition: var(--transition); z-index: 100;}
+        .sidebar-header { padding: 20px; font-size: 1.25rem; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .nav-links { list-style: none; padding: 20px 0; flex-grow: 1; }
+        .nav-item { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: var(--transition); border-left: 4px solid transparent; }
+        .nav-item:hover { background-color: rgba(255,255,255,0.05); }
+        .nav-item.active { background-color: rgba(255,255,255,0.1); border-left-color: var(--primary); }
+        
+        /* Main Content */
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Top Header */
+        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background-color: var(--card-bg); border-bottom: 1px solid var(--border-color); z-index: 10; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; transition: var(--transition); display: flex; align-items: center; gap: 8px; font-size: 0.875rem;}
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-outline { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
+        .btn-outline:hover { background-color: var(--bg-color); }
+
+        /* Filter Bar */
+        .filter-bar { background-color: var(--card-bg); padding: 16px 24px; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 12px; z-index: 9; }
+        .filter-dropdowns { display: flex; gap: 16px; flex-wrap: wrap; }
+        .select-wrapper { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 150px; }
+        .select-wrapper select { padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--bg-color); color: var(--text-main); outline: none; }
+        .active-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-height: 28px; }
+        .filter-chip { background-color: var(--primary); color: white; padding: 4px 10px; border-radius: 16px; font-size: 0.75rem; display: flex; align-items: center; gap: 6px; animation: fadeIn 0.2s; }
+        .filter-chip span { cursor: pointer; font-weight: bold; }
+
+        /* Scrollable Area */
+        .scroll-area { flex-grow: 1; overflow-y: auto; padding: 24px; }
+        .page { display: none; flex-direction: column; gap: 24px; animation: fadeIn 0.3s; }
+        .page.active { display: flex; }
+
+        /* KPIs */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .kpi-card { background-color: var(--card-bg); padding: 20px; border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border-color); }
+        .kpi-value { font-size: 1.8rem; font-weight: bold; color: var(--primary); margin-top: 8px; }
+
+        /* Charts Grid */
+        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .chart-card { background-color: var(--card-bg); padding: 20px; border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border-color); min-height: 350px; display: flex; flex-direction: column;}
+        .chart-card.full-width { grid-column: span 2; }
+        .chart-container { flex-grow: 1; width: 100%; height: 100%; position: relative; }
+
+        /* Data Table */
+        .table-container { background-color: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border-color); overflow: auto; max-height: 70vh; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-size: 0.875rem; }
+        th { background-color: var(--bg-color); position: sticky; top: 0; z-index: 1; font-weight: 600; }
+        tr:hover { background-color: rgba(128,128,128,0.05); }
+
+        /* Upload Overlay */
+        .upload-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--bg-color); z-index: 1000; display: flex; justify-content: center; align-items: center; flex-direction: column; padding: 20px; text-align: center; }
+        .upload-card { background-color: var(--card-bg); padding: 40px; border-radius: var(--radius); box-shadow: var(--shadow); max-width: 500px; width: 100%; border: 1px solid var(--border-color); }
+        .upload-area { border: 2px dashed var(--primary); padding: 40px 20px; border-radius: var(--radius); margin-top: 20px; cursor: pointer; transition: var(--transition); }
+        .upload-area:hover { background-color: rgba(37, 99, 235, 0.05); }
+        .loader { border: 4px solid var(--border-color); border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: 60px; flex-direction: row; align-items: center; justify-content: space-between; padding: 0 20px; order: 2; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: none;}
+            .sidebar-header { display: none; }
+            .nav-links { display: flex; padding: 0; margin: 0; justify-content: space-around; width: 100%; }
+            .nav-item { padding: 10px; border-left: none; border-bottom: 3px solid transparent; flex-direction: column; gap: 4px; font-size: 0.75rem;}
+            .nav-item.active { border-bottom-color: var(--primary); border-left: none; }
+            .main-content { order: 1; height: calc(100vh - 60px); }
+            .charts-grid { grid-template-columns: 1fr; }
+            .chart-card.full-width { grid-column: span 1; }
+            .filter-dropdowns { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="uploadScreen" class="upload-overlay">
+        <div class="upload-card">
+            <h2>CFPB Analytics Dashboard</h2>
+            <p class="text-muted" style="margin-top: 8px;">Upload the Consumer Financial Complaints Dataset (Excel or CSV) to begin.</p>
+            <label class="upload-area" id="dropZone" for="fileInput">
+                <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
+                <h3>Click or Drag & Drop File</h3>
+                <p class="text-sm text-muted">Supports .xlsx, .xls, .csv</p>
+                <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" style="display: none;">
+            </label>
+            <div id="loader" class="loader"></div>
+            <p id="loadingText" class="text-sm text-muted" style="margin-top: 16px; display: none;">Processing Data...</p>
+        </div>
+    </div>
+
+    <nav class="sidebar">
+        <div class="sidebar-header">CFPB Analytics</div>
+        <ul class="nav-links">
+            <li class="nav-item active" data-page="dashboard">
+                <span>📈</span> <span class="nav-text">Dashboard</span>
+            </li>
+            <li class="nav-item" data-page="deep-analysis">
+                <span>🔍</span> <span class="nav-text">Deep Analysis</span>
+            </li>
+            <li class="nav-item" data-page="data-table">
+                <span>📋</span> <span class="nav-text">Data Table</span>
+            </li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        
+        <header class="top-header">
+            <div>
+                <h2 id="pageTitle">Executive Dashboard</h2>
+                <p class="text-sm text-muted" id="dataInfo">Waiting for data...</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-outline" id="themeToggle">🌓 Theme</button>
+                <button class="btn btn-primary" id="exportBtn">📥 Export PDF</button>
+            </div>
+        </header>
+
+        <div class="filter-bar">
+            <div class="filter-dropdowns">
+                <div class="select-wrapper">
+                    <label class="text-sm text-muted">State</label>
+                    <select id="filterState"><option value="">All States</option></select>
+                </div>
+                <div class="select-wrapper">
+                    <label class="text-sm text-muted">Product</label>
+                    <select id="filterProduct"><option value="">All Products</option></select>
+                </div>
+                <div class="select-wrapper">
+                    <label class="text-sm text-muted">Issue</label>
+                    <select id="filterIssue"><option value="">All Issues</option></select>
+                </div>
+                <div class="select-wrapper">
+                    <label class="text-sm text-muted">Company</label>
+                    <select id="filterCompany"><option value="">All Companies</option></select>
+                </div>
+            </div>
+            <div class="active-filters">
+                <span class="text-sm text-muted">Active Filters:</span>
+                <div id="chipContainer" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
+                <button class="btn btn-outline" id="clearFiltersBtn" style="padding: 2px 8px; font-size: 0.75rem; display: none;">Clear All</button>
+            </div>
+        </div>
+
+        <div class="scroll-area" id="exportArea">
+            
+            <div id="dashboard" class="page active">
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="text-sm text-muted">Total Complaints</div>
+                        <div class="kpi-value" id="kpiTotal">0</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="text-sm text-muted">Timely Response Rate</div>
+                        <div class="kpi-value" id="kpiTimely">0%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="text-sm text-muted">Avg Response Time</div>
+                        <div class="kpi-value" id="kpiAvgTime">0 days</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="text-sm text-muted">Unique Companies Affected</div>
+                        <div class="kpi-value" id="kpiCompanies">0</div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card full-width">
+                        <h3>Complaints Over Time</h3>
+                        <div class="chart-container" id="chartTime"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Top 10 States</h3>
+                        <div class="chart-container" id="chartStates"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Product Distribution</h3>
+                        <div class="chart-container" id="chartProducts"></div>
+                    </div>
+                    <div class="chart-card full-width">
+                        <h3>Top 15 Companies by Complaints</h3>
+                        <div class="chart-container" id="chartCompanies"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="deep-analysis" class="page">
+                <div class="charts-grid">
+                    <div class="chart-card full-width">
+                        <h3>Product & Sub-Product Hierarchy</h3>
+                        <div class="chart-container" id="chartSunburst"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Issue Breakdown</h3>
+                        <div class="chart-container" id="chartIssues"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Submission Channel Performance</h3>
+                        <div class="chart-container" id="chartChannels"></div>
+                    </div>
+                    <div class="chart-card full-width">
+                        <h3>Regional Comparison</h3>
+                        <div class="chart-container" id="chartRegions"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="data-table" class="page">
+                <div class="chart-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3>Detailed Records <span class="text-sm text-muted">(Showing top 100 filtered)</span></h3>
+                        <input type="text" id="tableSearch" placeholder="Search records..." style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-main);">
+                    </div>
+                    <div class="table-container">
+                        <table id="dataTableEl">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Date</th>
+                                    <th>Product</th>
+                                    <th>Issue</th>
+                                    <th>Company</th>
+                                    <th>State</th>
+                                    <th>Timely?</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+<script>
+    /** --- STATE MANAGEMENT --- */
+    let globalData = [];
+    let filteredData = [];
+    
+    // Active Filters
+    let activeFilters = {
+        State: null,
+        Product: null,
+        Issue: null,
+        Company: null
+    };
+
+    /** --- INITIALIZATION & EVENT LISTENERS --- */
+    document.addEventListener("DOMContentLoaded", () => {
+        // Theme init
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        // Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                item.classList.add('active');
+                
+                const pageId = item.getAttribute('data-page');
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById(pageId).classList.add('active');
+                
+                const titles = {
+                    'dashboard': 'Executive Dashboard',
+                    'deep-analysis': 'Deep Analysis',
+                    'data-table': 'Data Records'
+                };
+                document.getElementById('pageTitle').innerText = titles[pageId];
+
+                // Trigger resize for plotly to fit container
+                window.dispatchEvent(new Event('resize'));
+            });
+        });
+
+        // Theme Toggle
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            renderAllCharts(); // Re-render to update font colors
+        });
+
+        // File Upload
+        const fileInput = document.getElementById('fileInput');
+        fileInput.addEventListener('change', handleFileUpload);
+        
+        // Export
+        document.getElementById('exportBtn').addEventListener('click', exportToPDF);
+
+        // Filter Dropdowns
+        ['State', 'Product', 'Issue', 'Company'].forEach(key => {
+            document.getElementById(`filter${key}`).addEventListener('change', (e) => {
+                setFilter(key, e.target.value);
+            });
+        });
+
+        document.getElementById('clearFiltersBtn').addEventListener('click', clearAllFilters);
+        document.getElementById('tableSearch').addEventListener('input', renderTable);
+    });
+
+    /** --- DATA PROCESSING --- */
+    function handleFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        document.getElementById('loader').style.display = 'block';
+        document.getElementById('loadingText').style.display = 'block';
+        document.querySelector('.upload-area').style.display = 'none';
+
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            try {
+                const data = evt.target.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                
+                // Prioritize 'Complaints (Fact)' sheet if exists
+                const sheetName = workbook.SheetNames.find(n => n.includes('Complaints')) || workbook.SheetNames[0];
+                const rawJson = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                
+                processData(rawJson);
+                
+                document.getElementById('uploadScreen').style.display = 'none';
+                initApp();
+            } catch (error) {
+                alert("Error reading file. Ensure it's a valid Excel/CSV dataset.");
+                console.error(error);
+                location.reload();
+            }
+        };
+        reader.readAsBinaryString(file);
+    }
+
+    function processData(rawJson) {
+        // Clean and map data
+        globalData = rawJson.map(row => {
+            // Excel serial dates handling
+            const parseExcelDate = (serial) => {
+                if (!serial) return null;
+                if (typeof serial === 'number') {
+                    return new Date((serial - 25569) * 86400 * 1000);
+                }
+                return new Date(serial); // fallback if it's string
+            };
+
+            let dateSub = parseExcelDate(row['Date submitted']);
+            let dateResp = parseExcelDate(row['Company_Response_Date']);
+            
+            // Calculate delay if not provided
+            let delay = row['Response_Time_Days'];
+            if (delay === undefined && dateSub && dateResp) {
+                delay = Math.round((dateResp - dateSub) / (1000 * 60 * 60 * 24));
+            }
+
+            return {
+                id: row['Complaint ID'] || Math.random().toString(36).substr(2, 9),
+                dateStr: dateSub ? dateSub.toISOString().split('T')[0] : null,
+                dateObj: dateSub,
+                state: row['State'] || 'Unknown',
+                product: row['Product'] || 'Unknown',
+                subProduct: row['Sub-product'] || 'None',
+                issue: row['Issue'] || 'Unknown',
+                subIssue: row['Sub-issue'] || 'None',
+                company: row['Company_ID_1081'] || row['Company'] || 'Unknown',
+                timely: row['Timely response?'] === 'Yes',
+                delay: delay || 0,
+                channel: row['Submitted via'] || 'Unknown',
+                region: row['Census_Region'] || 'Unknown'
+            };
+        }).filter(d => d.dateStr !== null); // Remove invalid rows
+
+        // Sort globally by date
+        globalData.sort((a, b) => a.dateObj - b.dateObj);
+        filteredData = [...globalData];
+    }
+
+    function initApp() {
+        populateDropdowns();
+        updateDashboard();
+    }
+
+    /** --- FILTER ENGINE --- */
+    function populateDropdowns() {
+        const states = new Set(), products = new Set(), issues = new Set(), companies = new Set();
+        globalData.forEach(d => {
+            states.add(d.state);
+            products.add(d.product);
+            issues.add(d.issue);
+            companies.add(d.company);
+        });
+
+        const fillSelect = (id, set) => {
+            const select = document.getElementById(id);
+            select.innerHTML = `<option value="">All ${id.replace('filter', '')}s</option>`;
+            Array.from(set).sort().forEach(val => {
+                select.innerHTML += `<option value="${val}">${val}</option>`;
+            });
+        };
+
+        fillSelect('filterState', states);
+        fillSelect('filterProduct', products);
+        fillSelect('filterIssue', issues);
+        fillSelect('filterCompany', companies);
+    }
+
+    function setFilter(key, value) {
+        if (value === "") activeFilters[key] = null;
+        else activeFilters[key] = value;
+        
+        applyFilters();
+    }
+
+    function removeFilter(key) {
+        activeFilters[key] = null;
+        document.getElementById(`filter${key}`).value = "";
+        applyFilters();
+    }
+
+    function clearAllFilters() {
+        Object.keys(activeFilters).forEach(k => {
+            activeFilters[k] = null;
+            document.getElementById(`filter${k}`).value = "";
+        });
+        applyFilters();
+    }
+
+    function applyFilters() {
+        filteredData = globalData.filter(d => {
+            if (activeFilters.State && d.state !== activeFilters.State) return false;
+            if (activeFilters.Product && d.product !== activeFilters.Product) return false;
+            if (activeFilters.Issue && d.issue !== activeFilters.Issue) return false;
+            if (activeFilters.Company && d.company !== activeFilters.Company) return false;
+            return true;
+        });
+
+        updateFilterUI();
+        updateDashboard();
+    }
+
+    function updateFilterUI() {
+        const container = document.getElementById('chipContainer');
+        const clearBtn = document.getElementById('clearFiltersBtn');
+        container.innerHTML = '';
+        let hasFilters = false;
+
+        Object.entries(activeFilters).forEach(([key, val]) => {
+            if (val) {
+                hasFilters = true;
+                const chip = document.createElement('div');
+                chip.className = 'filter-chip';
+                chip.innerHTML = `${key}: ${val.length > 20 ? val.substring(0,20)+'...' : val} <span onclick="removeFilter('${key}')">❌</span>`;
+                container.appendChild(chip);
+                document.getElementById(`filter${key}`).value = val;
+            }
+        });
+
+        clearBtn.style.display = hasFilters ? 'block' : 'none';
+        
+        document.getElementById('dataInfo').innerText = 
+            `Showing ${filteredData.length.toLocaleString()} / ${globalData.length.toLocaleString()} records`;
+    }
+
+    function crossFilter(type, value) {
+        setFilter(type, value);
+    }
+
+    /** --- RENDERING ENGINE --- */
+    function updateDashboard() {
+        renderKPIs();
+        renderAllCharts();
+        renderTable();
+    }
+
+    function renderKPIs() {
+        const total = filteredData.length;
+        const timelyCount = filteredData.filter(d => d.timely).length;
+        const timelyPct = total > 0 ? ((timelyCount / total) * 100).toFixed(1) : 0;
+        
+        const sumDelay = filteredData.reduce((acc, curr) => acc + curr.delay, 0);
+        const avgDelay = total > 0 ? (sumDelay / total).toFixed(1) : 0;
+
+        const uniqueCompanies = new Set(filteredData.map(d => d.company)).size;
+
+        document.getElementById('kpiTotal').innerText = total.toLocaleString();
+        document.getElementById('kpiTimely').innerText = `${timelyPct}%`;
+        document.getElementById('kpiAvgTime').innerText = `${avgDelay}`;
+        document.getElementById('kpiCompanies').innerText = uniqueCompanies.toLocaleString();
+    }
+
+    // Chart Configuration Helpers
+    function getThemeColors() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        return {
+            text: isDark ? '#f9fafb' : '#1f2937',
+            bg: 'rgba(0,0,0,0)',
+            grid: isDark ? '#374151' : '#e5e7eb',
+            primary: '#2563eb',
+            palette: ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#f59e0b', '#fbbf24', '#ef4444']
+        };
+    }
+
+    function baseLayout(title, custom = {}) {
+        const colors = getThemeColors();
+        return {
+            title: { text: title, font: { color: colors.text, size: 14 } },
+            paper_bgcolor: colors.bg,
+            plot_bgcolor: colors.bg,
+            font: { color: colors.text },
+            margin: { t: 40, b: 40, l: 40, r: 20 },
+            xaxis: { gridcolor: colors.grid, tickfont: { color: colors.text } },
+            yaxis: { gridcolor: colors.grid, tickfont: { color: colors.text } },
+            ...custom
+        };
+    }
+
+    function renderAllCharts() {
+        // Debounce slightly to prevent UI lockup if calling rapidly
+        requestAnimationFrame(() => {
+            renderTimeChart();
+            renderStateChart();
+            renderProductChart();
+            renderCompanyChart();
+            
+            // Deep Analysis Charts
+            renderSunburstChart();
+            renderIssueChart();
+            renderChannelChart();
+            renderRegionChart();
+        });
+    }
+
+    /** --- CHART IMPLEMENTATIONS --- */
+
+    // 1. Time Chart (Line)
+    function renderTimeChart() {
+        const agg = {};
+        filteredData.forEach(d => {
+            // Group by Year-Month for cleaner visualization if data spans long, else Day
+            const key = d.dateStr.substring(0, 7); // YYYY-MM
+            agg[key] = (agg[key] || 0) + 1;
+        });
+
+        const dates = Object.keys(agg).sort();
+        const counts = dates.map(k => agg[k]);
+
+        // Find spikes
+        const avg = counts.reduce((a,b)=>a+b,0) / (counts.length||1);
+        const threshold = avg * 1.5;
+        const colors = counts.map(c => c > threshold ? '#ef4444' : '#2563eb');
+
+        const trace = {
+            x: dates, y: counts,
+            type: 'scatter', mode: 'lines+markers',
+            marker: { color: colors, size: 8 },
+            line: { color: '#2563eb', width: 2 }
+        };
+
+        Plotly.newPlot('chartTime', [trace], baseLayout('', {
+            xaxis: { title: 'Month', gridcolor: getThemeColors().grid },
+            yaxis: { title: 'Volume', gridcolor: getThemeColors().grid }
+        }), {responsive: true}).then(gd => {
+            gd.removeAllListeners('plotly_click'); // prevent multiple bindings
+        });
+    }
+
+    // 2. States Chart (Bar)
+    function renderStateChart() {
+        const agg = {};
+        filteredData.forEach(d => { agg[d.state] = (agg[d.state] || 0) + 1; });
+        
+        const sorted = Object.entries(agg).sort((a,b) => b[1] - a[1]).slice(0, 10);
+        
+        const trace = {
+            x: sorted.map(d => d[0]),
+            y: sorted.map(d => d[1]),
+            type: 'bar',
+            marker: { color: getThemeColors().primary }
+        };
+
+        const layout = baseLayout('', { xaxis: { tickangle: -45 } });
+        
+        Plotly.newPlot('chartStates', [trace], layout, {responsive: true}).then(gd => {
+            gd.on('plotly_click', data => crossFilter('State', data.points[0].x));
+        });
+    }
+
+    // 3. Products Chart (Donut)
+    function renderProductChart() {
+        const agg = {};
+        filteredData.forEach(d => { agg[d.product] = (agg[d.product] || 0) + 1; });
+        
+        // Group tail into "Other" if too many
+        let sorted = Object.entries(agg).sort((a,b) => b[1] - a[1]);
+        if(sorted.length > 7) {
+            const top = sorted.slice(0, 6);
+            const otherSum = sorted.slice(6).reduce((sum, curr) => sum + curr[1], 0);
+            top.push(['Other', otherSum]);
+            sorted = top;
+        }
+
+        const trace = {
+            labels: sorted.map(d => d[0].length > 25 ? d[0].substring(0,25)+'...' : d[0]),
+            values: sorted.map(d => d[1]),
+            customdata: sorted.map(d => d[0]), // keep original full name for filtering
+            type: 'pie', hole: 0.5,
+            marker: { colors: getThemeColors().palette },
+            textinfo: 'percent'
+        };
+
+        Plotly.newPlot('chartProducts', [trace], baseLayout('', {
+            showlegend: true, legend: { orientation: 'h', y: -0.2 }
+        }), {responsive: true}).then(gd => {
+            gd.on('plotly_click', data => {
+                if(data.points[0].customdata !== 'Other') {
+                    crossFilter('Product', data.points[0].customdata);
+                }
+            });
+        });
+    }
+
+    // 4. Companies Chart (Horizontal Bar)
+    function renderCompanyChart() {
+        const agg = {};
+        filteredData.forEach(d => { agg[d.company] = (agg[d.company] || 0) + 1; });
+        
+        const sorted = Object.entries(agg).sort((a,b) => b[1] - a[1]).slice(0, 15).reverse();
+        
+        const trace = {
+            y: sorted.map(d => d[0].length > 20 ? d[0].substring(0,20)+'...' : d[0]),
+            x: sorted.map(d => d[1]),
+            customdata: sorted.map(d => d[0]),
+            type: 'bar', orientation: 'h',
+            marker: { color: '#3b82f6' }
+        };
+
+        const layout = baseLayout('', { 
+            margin: { l: 150, r: 20, t: 20, b: 40 },
+            xaxis: { title: 'Complaints', gridcolor: getThemeColors().grid }
+        });
+        
+        Plotly.newPlot('chartCompanies', [trace], layout, {responsive: true}).then(gd => {
+            gd.on('plotly_click', data => crossFilter('Company', data.points[0].customdata));
+        });
+    }
+
+    // 5. Sunburst (Product -> Subproduct)
+    <!-- ONLY showing the FIXED PART to keep this readable -->
+<!-- Replace ONLY your renderSunburstChart() function with this -->
+
+function renderSunburstChart() {
+    if (!filteredData.length) {
+        Plotly.purge('chartSunburst');
+        return;
+    }
+
+    const labels = [];
+    const parents = [];
+    const values = [];
+
+    const productMap = {};
+
+    // Build hierarchy
+    filteredData.forEach(d => {
+        if (!productMap[d.product]) {
+            productMap[d.product] = { total: 0, subs: {} };
+        }
+        productMap[d.product].total++;
+
+        if (!productMap[d.product].subs[d.subProduct]) {
+            productMap[d.product].subs[d.subProduct] = 0;
+        }
+        productMap[d.product].subs[d.subProduct]++;
+    });
+
+    // Root
+    const rootLabel = "All Products";
+    labels.push(rootLabel);
+    parents.push("");
+    
+    let totalSum = 0;
+
+    Object.entries(productMap).forEach(([product, pdata]) => {
+        totalSum += pdata.total;
+    });
+
+    values.push(totalSum);
+
+    // Products
+    Object.entries(productMap)
+        .sort((a,b)=>b[1].total-a[1].total)
+        .slice(0,6)
+        .forEach(([product, pdata]) => {
+            labels.push(product);
+            parents.push(rootLabel);
+            values.push(pdata.total);
+
+            // Sub-products
+            Object.entries(pdata.subs)
+                .sort((a,b)=>b[1]-a[1])
+                .slice(0,4)
+                .forEach(([sub, val]) => {
+                    labels.push(`${sub}`);
+                    parents.push(product);
+                    values.push(val);
+                });
+        });
+
+    const trace = {
+        type: "sunburst",
+        labels: labels,
+        parents: parents,
+        values: values,
+        branchvalues: "total",
+        maxdepth: 3,
+        marker: {
+            colors: getThemeColors().palette
+        },
+        hovertemplate: "<b>%{label}</b><br>Count: %{value}<extra></extra>"
+    };
+
+    Plotly.newPlot(
+        "chartSunburst",
+        [trace],
+        baseLayout("", {
+            margin: { t: 10, l: 10, r: 10, b: 10 }
+        }),
+        { responsive: true }
+    );
+}
+
+    // 6. Issues (Donut)
+    function renderIssueChart() {
+        const agg = {};
+        filteredData.forEach(d => { agg[d.issue] = (agg[d.issue] || 0) + 1; });
+        
+        let sorted = Object.entries(agg).sort((a,b) => b[1] - a[1]).slice(0, 10);
+        
+        const trace = {
+            labels: sorted.map(d => d[0].length > 30 ? d[0].substring(0,30)+'...' : d[0]),
+            values: sorted.map(d => d[1]),
+            customdata: sorted.map(d => d[0]),
+            type: 'pie', hole: 0.6,
+            marker: { colors: getThemeColors().palette }
+        };
+
+        Plotly.newPlot('chartIssues', [trace], baseLayout('', { showlegend: false }), {responsive: true}).then(gd => {
+            gd.on('plotly_click', data => crossFilter('Issue', data.points[0].customdata));
+        });
+    }
+
+    // 7. Channels (Bar comparing timely response %)
+    function renderChannelChart() {
+        const agg = {};
+        filteredData.forEach(d => {
+            if(!agg[d.channel]) agg[d.channel] = { total: 0, timely: 0 };
+            agg[d.channel].total++;
+            if (d.timely) agg[d.channel].timely++;
+        });
+
+        const sorted = Object.entries(agg).sort((a,b) => b[1].total - a[1].total);
+        
+        const channels = sorted.map(d => d[0]);
+        const totals = sorted.map(d => d[1].total);
+        const timelyPct = sorted.map(d => ((d[1].timely / d[1].total)*100).toFixed(1));
+
+        const trace1 = { x: channels, y: totals, type: 'bar', name: 'Volume', marker: { color: '#60a5fa' } };
+        const trace2 = { 
+            x: channels, y: timelyPct, type: 'scatter', mode: 'lines+markers', name: '% Timely', 
+            yaxis: 'y2', line: { color: '#10b981', width: 3 }
+        };
+
+        const layout = baseLayout('', {
+            yaxis: { title: 'Volume' },
+            yaxis2: { title: '% Timely', overlaying: 'y', side: 'right', range: [0, 100], tickfont: {color: '#10b981'} },
+            showlegend: false
+        });
+
+        Plotly.newPlot('chartChannels', [trace1, trace2], layout, {responsive: true});
+    }
+
+    // 8. Regions (Bar)
+    function renderRegionChart() {
+        const agg = {};
+        filteredData.forEach(d => { agg[d.region] = (agg[d.region] || 0) + 1; });
+        
+        const sorted = Object.entries(agg).sort((a,b) => b[1] - a[1]);
+        
+        const trace = {
+            x: sorted.map(d => d[0]), y: sorted.map(d => d[1]), type: 'bar',
+            marker: { color: '#f59e0b' }
+        };
+
+        Plotly.newPlot('chartRegions', [trace], baseLayout(''), {responsive: true});
+    }
+
+
+    /** --- DATA TABLE --- */
+    function renderTable() {
+        const tbody = document.querySelector('#dataTableEl tbody');
+        const searchTerm = document.getElementById('tableSearch').value.toLowerCase();
+        
+        // Filter further by search and limit to 100 for performance
+        const tableData = filteredData.filter(d => 
+            d.id.toString().toLowerCase().includes(searchTerm) ||
+            d.company.toLowerCase().includes(searchTerm) ||
+            d.product.toLowerCase().includes(searchTerm) ||
+            d.issue.toLowerCase().includes(searchTerm)
+        ).slice(0, 100);
+
+        tbody.innerHTML = tableData.map(d => `
+            <tr>
+                <td>${d.id}</td>
+                <td>${d.dateStr}</td>
+                <td><div title="${d.product}" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">${d.product}</div></td>
+                <td><div title="${d.issue}" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">${d.issue}</div></td>
+                <td>${d.company}</td>
+                <td>${d.state}</td>
+                <td>
+                    <span style="padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; background-color: ${d.timely ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${d.timely ? '#10b981' : '#ef4444'};">
+                        ${d.timely ? 'Yes' : 'No'}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    /** --- EXPORT UTILITY --- */
+    async function exportToPDF() {
+        const btn = document.getElementById('exportBtn');
+        const originalText = btn.innerText;
+        btn.innerText = 'Generating...';
+        btn.disabled = true;
+
+        try {
+            // Ensure dashboard is visible for capture
+            document.querySelectorAll('.nav-item')[0].click(); 
+
+            // Allow rendering to settle
+            await new Promise(r => setTimeout(r, 500));
+
+            const element = document.getElementById('dashboard');
+            const canvas = await html2canvas(element, { 
+                scale: 2, 
+                useCORS: true,
+                backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-color')
+            });
+            
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jspdf.jsPDF({
+                orientation: 'landscape',
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+            });
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+            pdf.save('CFPB_Dashboard_Export.pdf');
+
+        } catch (error) {
+            console.error('Export failed:', error);
+            alert('PDF Export failed. Please try again.');
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }
+
+</script>
+</body>
+</html>
