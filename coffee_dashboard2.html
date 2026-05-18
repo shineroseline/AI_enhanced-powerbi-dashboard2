@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Coffee Analytics</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/libs/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+
+    <style>
+        /* =========================================================
+           THEME SYSTEM & VARIABLES
+        ========================================================= */
+        :root {
+            /* Core Coffee Palette */
+            --cream: #ece0d1;
+            --latte: #dbc1ac;
+            --mocha: #967259;
+            --espresso: #634832;
+            --dark-roast: #38220f;
+            
+            /* Light Theme Defaults */
+            --bg-color: #f4f6f8;
+            --surface-color: #ffffff;
+            --surface-hover: #fcfcfc;
+            --text-main: #2c3e50;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+            --glass-bg: rgba(255, 255, 255, 0.7);
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme Overrides */
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --surface-hover: #2a2a2a;
+            --text-main: var(--cream);
+            --text-muted: var(--latte);
+            --border-color: #333333;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+            --glass-bg: rgba(30, 30, 30, 0.7);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow-x: hidden;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* =========================================================
+           LAYOUT ENGINE
+        ========================================================= */
+        #sidebar {
+            width: 260px;
+            background-color: var(--surface-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+        }
+
+        .brand {
+            padding: 24px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--espresso);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        [data-theme="dark"] .brand { color: var(--cream); }
+
+        .nav-items {
+            flex: 1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .nav-item:hover {
+            background-color: var(--surface-hover);
+            color: var(--mocha);
+        }
+
+        .nav-item.active {
+            background-color: var(--cream);
+            color: var(--dark-roast);
+            border-right: 4px solid var(--espresso);
+        }
+
+        [data-theme="dark"] .nav-item.active {
+            background-color: var(--espresso);
+            color: var(--cream);
+            border-right: 4px solid var(--latte);
+        }
+
+        /* Contact Section */
+        .contact-section {
+            padding: 24px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--surface-hover);
+        }
+        .contact-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+        .social-icons {
+            display: flex;
+            gap: 16px;
+        }
+        .social-icons a {
+            color: var(--text-muted);
+            font-size: 1.4rem;
+            transition: color 0.2s ease, transform 0.2s ease;
+            text-decoration: none;
+        }
+        .social-icons a:hover {
+            color: var(--mocha);
+            transform: translateY(-2px);
+        }
+
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        /* Top Navbar */
+        #topbar {
+            height: 70px;
+            background-color: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .actions {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: var(--espresso);
+            color: white;
+            font-size: 0.9rem;
+        }
+        .btn:hover { background-color: var(--dark-roast); }
+        .btn-outline { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
+        .btn-outline:hover { background-color: var(--surface-hover); }
+
+        /* Filter Engine */
+        #filter-bar {
+            background-color: var(--surface-color);
+            padding: 16px 32px;
+            border-bottom: 1px solid var(--border-color);
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-group label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;}
+        .filter-group select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            outline: none;
+        }
+
+        /* Dashboards */
+        .page {
+            padding: 32px;
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+        .page.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Widgets & Grid */
+        .grid-kpi {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .kpi-title { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+        .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--espresso); }
+        [data-theme="dark"] .kpi-value { color: var(--latte); }
+
+        .grid-charts {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        .full-width { grid-column: span 2; }
+
+        .chart-card {
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            min-height: 350px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-header { 
+            font-size: 1.1rem; 
+            font-weight: 600; 
+            margin-bottom: 16px; 
+            color: var(--text-main); 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chart-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .chart-container { flex: 1; position: relative; width: 100%; height: 100%; min-height: 250px;}
+        canvas { cursor: pointer; } /* Indicates cross-filtering */
+
+        /* Upload Screen */
+        #upload-screen {
+            position: absolute;
+            inset: 0;
+            background-color: var(--bg-color);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-box {
+            background-color: var(--surface-color);
+            border: 2px dashed var(--mocha);
+            border-radius: 16px;
+            padding: 64px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+        }
+        .upload-box:hover { background-color: var(--surface-hover); }
+        .upload-box i { font-size: 4rem; color: var(--mocha); margin-bottom: 24px; }
+        .upload-box h2 { margin-bottom: 12px; }
+        .upload-box p { color: var(--text-muted); margin-bottom: 24px; }
+
+        /* Data Table */
+        .data-table-container { overflow-x: auto; max-height: 400px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+        th { background-color: var(--bg-color); position: sticky; top: 0; z-index: 10; font-weight: 600; }
+
+        /* AI Insight Box */
+        .ai-insight {
+            background: linear-gradient(135deg, var(--latte) 0%, var(--mocha) 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        [data-theme="dark"] .ai-insight { background: linear-gradient(135deg, var(--espresso) 0%, var(--dark-roast) 100%); }
+
+        /* Executive Summary Page specific styles */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+        }
+        .summary-card {
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+        .summary-card h3 {
+            color: var(--espresso);
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        [data-theme="dark"] .summary-card h3 { color: var(--latte); }
+        
+        .summary-card p {
+            color: var(--text-main);
+            line-height: 1.7;
+            margin-bottom: 16px;
+            font-size: 1.05rem;
+        }
+        .summary-card strong {
+            color: var(--mocha);
+        }
+
+        .rec-item {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .rec-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .rec-item i {
+            font-size: 1.5rem;
+            color: var(--mocha);
+            background: var(--cream);
+            padding: 16px;
+            border-radius: 50%;
+            height: fit-content;
+        }
+        [data-theme="dark"] .rec-item i { background: var(--dark-roast); }
+        .rec-item h4 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+        .rec-item p {
+            font-size: 0.95rem;
+            margin-bottom: 0;
+            color: var(--text-muted);
+        }
+
+    </style>
+</head>
+<body>
+
+    <nav id="sidebar">
+        <div class="brand">
+            <i class="fa-solid fa-mug-hot"></i> BeanSight BI
+        </div>
+        <div class="nav-items" id="nav-menu" style="display:none;">
+            <div class="nav-item active" data-target="page-1">
+                <i class="fa-solid fa-chart-pie"></i> Executive Overview
+            </div>
+            <div class="nav-item" data-target="page-2">
+                <i class="fa-solid fa-chart-bar"></i> Brand & Roaster Analytics
+            </div>
+            <div class="nav-item" data-target="page-3">
+                <i class="fa-solid fa-globe"></i> Global Insights
+            </div>
+            <div class="nav-item" data-target="page-4">
+                <i class="fa-solid fa-lightbulb"></i> Exec. Recommendations
+            </div>
+        </div>
+
+        <div class="contact-section" id="contact-section" style="display:none;">
+            <div class="contact-title">Contact Analyst</div>
+            <div class="social-icons">
+                <a href="https://wa.me/08130198100" target="_blank" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
+                <a href="https://www.linkedin.com/in/shinerosewriter/" target="_blank" title="LinkedIn"><i class="fa-brands fa-linkedin"></i></a>
+                <a href="https://www.instagram.com/thelivingemerald_online/?hl=en" target="_blank" title="Instagram"><i class="fa-brands fa-instagram"></i></a>
+            </div>
+        </div>
+    </nav>
+
+    <main id="main-content">
+        <header id="topbar">
+            <h2 id="page-title">Data Upload Required</h2>
+            <div class="actions" style="display:none;" id="global-actions">
+                <button class="btn btn-outline" id="theme-toggle" title="Toggle Dark/Light Mode"><i class="fa-solid fa-moon"></i></button>
+                <button class="btn" id="export-pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                <button class="btn" id="export-ppt"><i class="fa-solid fa-file-powerpoint"></i> PPTX</button>
+            </div>
+        </header>
+
+        <div id="filter-bar">
+            <div class="filter-group">
+                <label>Origin Country</label>
+                <select id="filter-country"><option value="All">All Countries</option></select>
+            </div>
+            <div class="filter-group">
+                <label>Roast Level</label>
+                <select id="filter-roast"><option value="All">All Roasts</option></select>
+            </div>
+            <div class="filter-group">
+                <label>Brand</label>
+                <select id="filter-brand"><option value="All">All Brands</option></select>
+            </div>
+            <div class="filter-group">
+                <label>&nbsp;</label>
+                <button class="btn btn-outline" style="width: 100%; justify-content:center;" onclick="App.FilterEngine.resetFilters()"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+            </div>
+        </div>
+
+        <div id="upload-screen">
+            <div class="upload-box" id="drop-zone">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <h2>Upload Coffee Dataset</h2>
+                <p>Drag & drop your <code>coffee_sheet.xlsx</code> or <code>.csv</code> here, or click to browse.</p>
+                <input type="file" id="file-input" accept=".xlsx, .xls, .csv" style="display: none;">
+                <button class="btn" style="margin: 0 auto;" onclick="document.getElementById('file-input').click()">Browse Files</button>
+            </div>
+        </div>
+
+        <div id="page-1" class="page" data-title="Executive Overview">
+            <div class="grid-kpi">
+                <div class="kpi-card"><div class="kpi-title">Total Coffees</div><div class="kpi-value" id="kpi-total">0</div></div>
+                <div class="kpi-card"><div class="kpi-title">Avg Rating</div><div class="kpi-value" id="kpi-avg-rating">0</div></div>
+                <div class="kpi-card"><div class="kpi-title">Avg Price / 100g</div><div class="kpi-value" id="kpi-avg-price">$0</div></div>
+                <div class="kpi-card"><div class="kpi-title">Total Countries</div><div class="kpi-value" id="kpi-countries">0</div></div>
+                <div class="kpi-card"><div class="kpi-title">Total Roasters</div><div class="kpi-value" id="kpi-roasters">0</div></div>
+            </div>
+
+            <div class="grid-charts">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        Roast Breakdown 
+                        <span class="chart-hint">(Click bar to filter)</span>
+                    </div>
+                    <div class="chart-container"><canvas id="chart-roast-breakdown"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-header">
+                        Top 10 Origin Countries
+                        <span class="chart-hint">(Click slice to filter)</span>
+                    </div>
+                    <div class="chart-container"><canvas id="chart-country-donut"></canvas></div>
+                </div>
+                <div class="chart-card full-width">
+                    <div class="chart-header">Price vs Rating Distribution</div>
+                    <div class="chart-container" id="chart-price-rating-scatter"></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-header">Average Rating by Roast Type</div>
+                    <div class="chart-container"><canvas id="chart-rating-roast"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-header">Reviews Over Time (Trend)</div>
+                    <div class="chart-container"><canvas id="chart-year-trend"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-2" class="page" data-title="Brand & Roaster Analytics">
+            <div class="grid-charts">
+                <div class="chart-card">
+                    <div class="chart-header"><i class="fa-solid fa-crown" style="color: gold;"></i> Most Expensive Coffee per 100g</div>
+                    <div class="chart-container" style="display:flex; flex-direction:column; justify-content:center;">
+                        <h2 id="exp-name" style="color: var(--espresso); font-size:1.8rem; margin-bottom: 10px;">-</h2>
+                        <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 15px; color: var(--mocha);" id="exp-price">$-</div>
+                        <p><strong>Roaster:</strong> <span id="exp-roaster"></span></p>
+                        <p><strong>Origin:</strong> <span id="exp-origin"></span></p>
+                        <p><strong>Rating:</strong> <span id="exp-rating"></span>/100</p>
+                        <p><strong>Aroma:</strong> <span id="exp-aroma"></span></p>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">Highest Avg Rating by Country (Min 3 reviews)</div>
+                    <div class="chart-container"><canvas id="chart-highest-rating-country"></canvas></div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="chart-header">Top 5 Brands by Average Rating Over Years</div>
+                    <div class="chart-container"><canvas id="chart-best-brands-year"></canvas></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        Top 5 Roasters (Avg Rating)
+                    </div>
+                    <div class="chart-container"><canvas id="chart-top-roasters"></canvas></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">Coffees Rated > 90 by Region</div>
+                    <div class="chart-container" id="chart-rated-90-plus"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-3" class="page" data-title="Global & Demographic Insights">
+            <div class="grid-charts">
+                <div class="chart-card full-width">
+                    <div class="chart-header">Light Roast Inventory</div>
+                    <div class="chart-container data-table-container">
+                        <table id="light-roast-table">
+                            <thead><tr><th>Brand</th><th>Roaster</th><th>Origin</th><th>Rating</th><th>Price/100g</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="chart-header">Global Origin Contributions</div>
+                    <div class="chart-container" id="chart-country-treemap"></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">Top 5 Asian Brands Profile</div>
+                    <div class="chart-container"><canvas id="chart-asian-brands"></canvas></div>
+                    <div class="ai-insight" id="asian-insight">Analyzing mouthfeel descriptors...</div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">North American Aroma Descriptors</div>
+                    <div class="chart-container" id="chart-word-cloud"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-4" class="page" data-title="Executive Recommendations">
+            <div class="summary-grid">
+                
+                <div class="summary-card">
+                    <h3><i class="fa-solid fa-chart-line"></i> Executive Summary</h3>
+                    <div id="exec-summary-content">
+                        </div>
+                </div>
+
+                <div class="summary-card">
+                    <h3><i class="fa-solid fa-bullseye"></i> Actionable Recommendations</h3>
+                    <div id="recommendations-content">
+                        </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        /**
+         * =========================================================
+         * ENTERPRISE BI DASHBOARD ARCHITECTURE
+         * =========================================================
+         */
+
+        const App = {
+            State: {
+                rawData: [],
+                filteredData: [],
+                activePage: 'page-1',
+                theme: 'light',
+                chartInstances: {} 
+            },
+
+            Config: {
+                colors: {
+                    cream: '#ece0d1', latte: '#dbc1ac', mocha: '#967259',
+                    espresso: '#634832', darkRoast: '#38220f'
+                },
+                regions: {
+                    'North America': ['United States', 'Mexico', 'Canada', 'Hawaii'],
+                    'Central America': ['Guatemala', 'Costa Rica', 'Panama', 'Honduras', 'El Salvador', 'Nicaragua'],
+                    'South America': ['Colombia', 'Peru', 'Brazil', 'Ecuador', 'Bolivia'],
+                    'Africa': ['Ethiopia', 'Kenya', 'Burundi', 'Rwanda', 'Tanzania', 'Uganda', 'Congo'],
+                    'Asia': ['Taiwan', 'Indonesia', 'China', 'Vietnam', 'Thailand', 'India', 'Yemen', 'Sumatra']
+                }
+            },
+
+            Init() {
+                this.ThemeEngine.init();
+                this.UIEngine.initListeners();
+                this.UploadEngine.init();
+                this.ExportEngine.init();
+            },
+
+            // =========================================================
+            //  DATA TRANSFORMATION ENGINE
+            // =========================================================
+            DataEngine: {
+                processRaw(jsonData) {
+                    const cleaned = jsonData.map(row => {
+                        let parsed = {
+                            brand: row['Brand Name'] || row['brand_name'] || 'Unknown',
+                            roaster: row['Roasters'] || row['roaster'] || 'Unknown',
+                            roast: row['Type of Roast'] || row['type_of_roast'] || 'Unknown',
+                            origin: row['Origin'] || row['origin'] || 'Unknown',
+                            price: parseFloat(row['Price per 100g (USD)']) || 0,
+                            rating: parseFloat(row['Rating']) || 0,
+                            dateStr: row['Review Date'] || row['review_date'] || null,
+                            aroma: row['Aroma'] || row['aroma'] || '',
+                            mouthfeel: row['Mouthfeel'] || row['mouthfeel'] || ''
+                        };
+
+                        if(parsed.roast.includes('Medium-Light')) parsed.roast = 'Medium-Light';
+                        else if(parsed.roast.includes('Medium-Dark')) parsed.roast = 'Medium-Dark';
+                        else if(parsed.roast.includes('Medium')) parsed.roast = 'Medium';
+                        else if(parsed.roast.includes('Light')) parsed.roast = 'Light';
+                        else if(parsed.roast.includes('Dark')) parsed.roast = 'Dark';
+
+                        parsed.year = 'Unknown';
+                        if(parsed.dateStr) {
+                            const d = new Date(parsed.dateStr);
+                            if(!isNaN(d)) parsed.year = d.getFullYear().toString();
+                        }
+
+                        parsed.region = 'Other';
+                        for (const [region, countries] of Object.entries(App.Config.regions)) {
+                            if(countries.some(c => parsed.origin.includes(c))) {
+                                parsed.region = region;
+                                break;
+                            }
+                        }
+
+                        return parsed;
+                    }).filter(r => r.price > 0 && r.rating > 0); 
+
+                    App.State.rawData = cleaned;
+                    App.State.filteredData = [...cleaned];
+                    
+                    App.FilterEngine.populateFilters();
+                    App.UIEngine.startDashboard();
+                },
+
+                aggregate(data, groupKey, valKey, method = 'sum') {
+                    const res = {};
+                    data.forEach(d => {
+                        let k = d[groupKey] || 'Unknown';
+                        let v = parseFloat(d[valKey]) || 0;
+                        if (!res[k]) res[k] = { sum: 0, count: 0, values: [] };
+                        res[k].sum += v;
+                        res[k].count += 1;
+                        res[k].values.push(v);
+                    });
+
+                    return Object.keys(res).map(k => {
+                        let val = 0;
+                        if(method === 'sum') val = res[k].sum;
+                        else if(method === 'avg') val = res[k].sum / res[k].count;
+                        else if(method === 'max') val = Math.max(...res[k].values);
+                        else if(method === 'count') val = res[k].count;
+                        return { label: k, value: val, count: res[k].count };
+                    }).sort((a,b) => b.value - a.value);
+                }
+            },
+
+            // =========================================================
+            //  UPLOAD ENGINE
+            // =========================================================
+            UploadEngine: {
+                init() {
+                    const dropZone = document.getElementById('drop-zone');
+                    const fileInput = document.getElementById('file-input');
+
+                    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = App.Config.colors.espresso; });
+                    dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.style.borderColor = App.Config.colors.mocha; });
+                    dropZone.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        if(e.dataTransfer.files.length) this.handleFile(e.dataTransfer.files[0]);
+                    });
+
+                    fileInput.addEventListener('change', (e) => {
+                        if(e.target.files.length) this.handleFile(e.target.files[0]);
+                    });
+                },
+                handleFile(file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                        if(jsonData.length > 0) {
+                            App.DataEngine.processRaw(jsonData);
+                        } else {
+                            alert('No valid data found in file.');
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+            },
+
+            // =========================================================
+            //  FILTER ENGINE
+            // =========================================================
+            FilterEngine: {
+                populateFilters() {
+                    const data = App.State.rawData;
+                    const populate = (id, key) => {
+                        const select = document.getElementById(id);
+                        const unique = [...new Set(data.map(d => d[key]))].sort();
+                        select.innerHTML = `<option value="All">All ${key.charAt(0).toUpperCase() + key.slice(1)}s</option>` + 
+                            unique.map(u => `<option value="${u}">${u}</option>`).join('');
+                        
+                        select.addEventListener('change', () => this.applyFilters());
+                    };
+
+                    populate('filter-country', 'origin');
+                    populate('filter-roast', 'roast');
+                    populate('filter-brand', 'brand');
+                },
+
+                applyFilters() {
+                    const country = document.getElementById('filter-country').value;
+                    const roast = document.getElementById('filter-roast').value;
+                    const brand = document.getElementById('filter-brand').value;
+
+                    App.State.filteredData = App.State.rawData.filter(d => {
+                        return (country === 'All' || d.origin === country) &&
+                               (roast === 'All' || d.roast === roast) &&
+                               (brand === 'All' || d.brand === brand);
+                    });
+
+                    App.RenderEngine.renderActivePage();
+                },
+
+                resetFilters() {
+                    document.getElementById('filter-country').value = 'All';
+                    document.getElementById('filter-roast').value = 'All';
+                    document.getElementById('filter-brand').value = 'All';
+                    this.applyFilters();
+                },
+
+                // Cross filtering helper
+                setGlobalFilter(elementId, value) {
+                    const el = document.getElementById(elementId);
+                    if(el) {
+                        el.value = value;
+                        this.applyFilters();
+                    }
+                }
+            },
+
+            // =========================================================
+            //  UI & THEME ENGINE
+            // =========================================================
+            UIEngine: {
+                initListeners() {
+                    document.querySelectorAll('.nav-item').forEach(el => {
+                        el.addEventListener('click', (e) => {
+                            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                            e.currentTarget.classList.add('active');
+                            const target = e.currentTarget.dataset.target;
+                            this.switchPage(target);
+                        });
+                    });
+                },
+                startDashboard() {
+                    document.getElementById('upload-screen').style.display = 'none';
+                    document.getElementById('nav-menu').style.display = 'block';
+                    document.getElementById('contact-section').style.display = 'block';
+                    document.getElementById('global-actions').style.display = 'flex';
+                    document.getElementById('filter-bar').style.display = 'grid';
+                    this.switchPage('page-1');
+                },
+                switchPage(pageId) {
+                    App.State.activePage = pageId;
+                    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                    const pageEl = document.getElementById(pageId);
+                    pageEl.classList.add('active');
+                    document.getElementById('page-title').innerText = pageEl.dataset.title;
+                    
+                    App.RenderEngine.renderActivePage();
+                }
+            },
+
+            ThemeEngine: {
+                init() {
+                    const toggle = document.getElementById('theme-toggle');
+                    toggle.addEventListener('click', () => {
+                        const current = document.documentElement.getAttribute('data-theme');
+                        const next = current === 'light' ? 'dark' : 'light';
+                        document.documentElement.setAttribute('data-theme', next);
+                        toggle.innerHTML = next === 'dark' ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+                        App.State.theme = next;
+                        
+                        if(App.State.rawData.length) App.RenderEngine.renderActivePage();
+                    });
+                },
+                getChartColors() {
+                    const isDark = App.State.theme === 'dark';
+                    return {
+                        text: isDark ? App.Config.colors.cream : '#2c3e50',
+                        grid: isDark ? '#333333' : '#e2e8f0',
+                        palette: [App.Config.colors.espresso, App.Config.colors.mocha, App.Config.colors.latte, '#b28d6f', '#c9a584']
+                    };
+                }
+            },
+
+            // =========================================================
+            //  VISUALIZATION RENDER ENGINE
+            // =========================================================
+            RenderEngine: {
+                renderActivePage() {
+                    const data = App.State.filteredData;
+                    if(!data.length) return;
+
+                    const page = App.State.activePage;
+                    if(page === 'page-1') this.renderPage1(data);
+                    if(page === 'page-2') this.renderPage2(data);
+                    if(page === 'page-3') this.renderPage3(data);
+                    if(page === 'page-4') this.renderPage4(data);
+                },
+
+                _destroyChart(id) {
+                    if(App.State.chartInstances[id]) {
+                        App.State.chartInstances[id].destroy();
+                    }
+                },
+
+                // ---- PAGE 1 ----
+                renderPage1(data) {
+                    document.getElementById('kpi-total').innerText = data.length.toLocaleString();
+                    const avgR = data.reduce((s, d) => s + d.rating, 0) / data.length;
+                    document.getElementById('kpi-avg-rating').innerText = avgR.toFixed(1);
+                    const avgP = data.reduce((s, d) => s + d.price, 0) / data.length;
+                    document.getElementById('kpi-avg-price').innerText = '$' + avgP.toFixed(2);
+                    document.getElementById('kpi-countries').innerText = new Set(data.map(d=>d.origin)).size;
+                    document.getElementById('kpi-roasters').innerText = new Set(data.map(d=>d.roaster)).size;
+
+                    const colors = App.ThemeEngine.getChartColors();
+                    Chart.defaults.color = colors.text;
+
+                    // Chart: Roast Breakdown (Cross-filterable)
+                    const roastAgg = App.DataEngine.aggregate(data, 'roast', 'rating', 'count');
+                    this._destroyChart('chart-roast-breakdown');
+                    App.State.chartInstances['chart-roast-breakdown'] = new Chart(document.getElementById('chart-roast-breakdown'), {
+                        type: 'bar',
+                        data: {
+                            labels: roastAgg.map(d=>d.label),
+                            datasets: [{ label: 'Count', data: roastAgg.map(d=>d.value), backgroundColor: colors.palette[0], borderRadius: 4 }]
+                        },
+                        options: { 
+                            responsive: true, maintainAspectRatio: false, 
+                            scales: { y: { grid: { color: colors.grid } }, x: { grid: { display: false } } },
+                            onClick: (e, elements, chart) => {
+                                if (elements.length > 0) {
+                                    const label = chart.data.labels[elements[0].index];
+                                    App.FilterEngine.setGlobalFilter('filter-roast', label);
+                                }
+                            }
+                        }
+                    });
+
+                    // Chart: Country Donut (Cross-filterable)
+                    const countryAgg = App.DataEngine.aggregate(data, 'origin', 'rating', 'count').slice(0, 10);
+                    this._destroyChart('chart-country-donut');
+                    App.State.chartInstances['chart-country-donut'] = new Chart(document.getElementById('chart-country-donut'), {
+                        type: 'doughnut',
+                        data: {
+                            labels: countryAgg.map(d=>d.label),
+                            datasets: [{ data: countryAgg.map(d=>d.value), backgroundColor: colors.palette }]
+                        },
+                        options: { 
+                            responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } },
+                            onClick: (e, elements, chart) => {
+                                if (elements.length > 0) {
+                                    const label = chart.data.labels[elements[0].index];
+                                    App.FilterEngine.setGlobalFilter('filter-country', label);
+                                }
+                            }
+                        }
+                    });
+
+                    // Chart: Price vs Rating Scatter
+                    const plotlyLayout = {
+                        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                        font: { color: colors.text },
+                        xaxis: { title: 'Rating', gridcolor: colors.grid },
+                        yaxis: { title: 'Price (USD)', gridcolor: colors.grid },
+                        margin: { l: 40, r: 20, t: 20, b: 40 }
+                    };
+                    Plotly.newPlot('chart-price-rating-scatter', [{
+                        x: data.map(d=>d.rating), y: data.map(d=>d.price), mode: 'markers',
+                        type: 'scatter', marker: { size: 8, color: App.Config.colors.mocha, opacity: 0.7 },
+                        text: data.map(d=>`${d.brand} - ${d.origin}`)
+                    }], plotlyLayout, {responsive: true});
+
+                    // Chart: Rating by Roast
+                    const ratingRoastAgg = App.DataEngine.aggregate(data, 'roast', 'rating', 'avg');
+                    this._destroyChart('chart-rating-roast');
+                    App.State.chartInstances['chart-rating-roast'] = new Chart(document.getElementById('chart-rating-roast'), {
+                        type: 'line',
+                        data: {
+                            labels: ratingRoastAgg.map(d=>d.label),
+                            datasets: [{ label: 'Avg Rating', data: ratingRoastAgg.map(d=>d.value), borderColor: colors.palette[1], tension: 0.3, fill:true, backgroundColor: colors.palette[1]+'33' }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 80, grid: { color: colors.grid } } } }
+                    });
+
+                    // Chart: Reviews Over Time
+                    const yearAgg = App.DataEngine.aggregate(data.filter(d=>d.year!=='Unknown'), 'year', 'rating', 'count').sort((a,b)=>a.label.localeCompare(b.label));
+                    this._destroyChart('chart-year-trend');
+                    App.State.chartInstances['chart-year-trend'] = new Chart(document.getElementById('chart-year-trend'), {
+                        type: 'bar',
+                        data: {
+                            labels: yearAgg.map(d=>d.label),
+                            datasets: [{ label: 'Number of Reviews', data: yearAgg.map(d=>d.value), backgroundColor: colors.palette[2] }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                },
+
+                // ---- PAGE 2 ----
+                renderPage2(data) {
+                    const colors = App.ThemeEngine.getChartColors();
+                    Chart.defaults.color = colors.text;
+
+                    // 1. Most Expensive
+                    const mostExp = data.reduce((max, d) => d.price > max.price ? d : max, data[0]);
+                    document.getElementById('exp-name').innerText = mostExp.brand;
+                    document.getElementById('exp-price').innerText = '$' + mostExp.price.toFixed(2);
+                    document.getElementById('exp-roaster').innerText = mostExp.roaster;
+                    document.getElementById('exp-origin').innerText = mostExp.origin;
+                    document.getElementById('exp-rating').innerText = mostExp.rating;
+                    document.getElementById('exp-aroma').innerText = mostExp.aroma || 'N/A';
+
+                    // 2. Highest Avg Rating Country
+                    let cAgg = App.DataEngine.aggregate(data, 'origin', 'rating', 'avg');
+                    cAgg = cAgg.filter(c => c.count >= 3).slice(0, 5);
+                    this._destroyChart('chart-highest-rating-country');
+                    App.State.chartInstances['chart-highest-rating-country'] = new Chart(document.getElementById('chart-highest-rating-country'), {
+                        type: 'bar',
+                        data: {
+                            labels: cAgg.map(d=>d.label),
+                            datasets: [{ label: 'Avg Rating', data: cAgg.map(d=>d.value), backgroundColor: colors.palette[0] }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { min: 85 } } }
+                    });
+
+                    // 3. Best Brands Trend (Converted to Grouped Bar Chart)
+                    const topBrands = App.DataEngine.aggregate(data, 'brand', 'rating', 'avg').filter(b=>b.count>2).slice(0,5).map(b=>b.label);
+                    const years = [...new Set(data.filter(d=>d.year!=='Unknown').map(d=>d.year))].sort();
+                    
+                    const datasets = topBrands.map((brand, i) => {
+                        const brandData = data.filter(d=>d.brand === brand);
+                        const points = years.map(y => {
+                            const yData = brandData.filter(d=>d.year===y);
+                            return yData.length ? yData.reduce((s,d)=>s+d.rating,0)/yData.length : null;
+                        });
+                        return { label: brand, data: points, backgroundColor: colors.palette[i%colors.palette.length] };
+                    });
+
+                    this._destroyChart('chart-best-brands-year');
+                    App.State.chartInstances['chart-best-brands-year'] = new Chart(document.getElementById('chart-best-brands-year'), {
+                        type: 'bar', // Changed from 'line'
+                        data: { labels: years, datasets: datasets },
+                        options: { 
+                            responsive: true, 
+                            maintainAspectRatio: false, 
+                            scales: { y: { min: 80, grid: { color: colors.grid } } },
+                            plugins: {
+                                legend: { position: 'top' }
+                            }
+                        }
+                    });
+
+                    // 4. Top Roasters Leaderboard
+                    const topRoasters = App.DataEngine.aggregate(data, 'roaster', 'rating', 'avg').filter(r=>r.count>=2).slice(0,5);
+                    this._destroyChart('chart-top-roasters');
+                    App.State.chartInstances['chart-top-roasters'] = new Chart(document.getElementById('chart-top-roasters'), {
+                        type: 'bar',
+                        data: {
+                            labels: topRoasters.map(d=>d.label),
+                            datasets: [{ label: 'Avg Rating', data: topRoasters.map(d=>d.value), backgroundColor: colors.palette[2] }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 85 } } }
+                    });
+
+                    // 5. Rated > 90 by Region
+                    const over90 = data.filter(d => d.rating > 90);
+                    const r90Agg = App.DataEngine.aggregate(over90, 'region', 'rating', 'count');
+                    Plotly.newPlot('chart-rated-90-plus', [{
+                        labels: r90Agg.map(d=>d.label), values: r90Agg.map(d=>d.value),
+                        type: 'pie', hole: .4, marker: { colors: [colors.palette[0], colors.palette[1], colors.palette[2], '#d4c4b7'] }
+                    }], { paper_bgcolor: 'rgba(0,0,0,0)', font: { color: colors.text }, margin: {t:10, b:10, l:10, r:10}}, {responsive: true});
+                },
+
+                // ---- PAGE 3 ----
+                renderPage3(data) {
+                    const colors = App.ThemeEngine.getChartColors();
+                    Chart.defaults.color = colors.text;
+
+                    // 6. Light Roast Table
+                    const lightData = data.filter(d => d.roast === 'Light' || d.roast === 'Medium-Light').slice(0, 50); 
+                    const tbody = document.querySelector('#light-roast-table tbody');
+                    tbody.innerHTML = lightData.map(d => `
+                        <tr>
+                            <td>${d.brand}</td>
+                            <td>${d.roaster}</td>
+                            <td>${d.origin}</td>
+                            <td><strong>${d.rating}</strong></td>
+                            <td>$${d.price.toFixed(2)}</td>
+                        </tr>
+                    `).join('');
+
+                    // 7. Country Treemap
+                    const countryCount = App.DataEngine.aggregate(data, 'origin', 'rating', 'count');
+                    Plotly.newPlot('chart-country-treemap', [{
+                        type: 'treemap',
+                        labels: countryCount.map(d=>d.label),
+                        parents: countryCount.map(d=>"World"),
+                        values: countryCount.map(d=>d.value),
+                        textinfo: "label+value",
+                        marker: { colorscale: 'Blues' } 
+                    }], { paper_bgcolor: 'rgba(0,0,0,0)', font: { color: colors.text }, margin: {t:0,b:0,l:0,r:0} }, {responsive: true});
+
+                    // 8. Top 5 Asian Brands Radar
+                    const asianData = data.filter(d => d.region === 'Asia');
+                    const topAsianBrands = App.DataEngine.aggregate(asianData, 'brand', 'rating', 'avg').slice(0, 5);
+                    
+                    if(topAsianBrands.length > 0) {
+                        this._destroyChart('chart-asian-brands');
+                        App.State.chartInstances['chart-asian-brands'] = new Chart(document.getElementById('chart-asian-brands'), {
+                            type: 'radar',
+                            data: {
+                                labels: topAsianBrands.map(d=>d.label),
+                                datasets: [{ label: 'Average Rating', data: topAsianBrands.map(d=>d.value), backgroundColor: colors.palette[1]+'55', borderColor: colors.palette[1], pointBackgroundColor: colors.palette[0] }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: 80, grid: { color: colors.grid }, pointLabels:{ color: colors.text } } } }
+                        });
+
+                        const topBrand = topAsianBrands[0].label;
+                        const mouthfeels = asianData.filter(d=>d.brand===topBrand).map(d=>d.mouthfeel).join(' ').split(/[\s,]+/);
+                        const mfCount = {}; mouthfeels.forEach(m => { if(m.length>3) mfCount[m] = (mfCount[m]||0)+1; });
+                        const topMf = Object.keys(mfCount).sort((a,b)=>mfCount[b]-mfCount[a]).slice(0,3).join(', ');
+                        
+                        document.getElementById('asian-insight').innerHTML = `
+                            <strong><i class="fa-solid fa-wand-magic-sparkles"></i> AI Insight:</strong> 
+                            The leading Asian brand is <b>${topBrand}</b> with an impressive avg rating of ${topAsianBrands[0].value.toFixed(1)}. 
+                            Common mouthfeel descriptors driving this score include: <i>${topMf.toLowerCase()}</i>.
+                        `;
+                    } else {
+                        document.getElementById('asian-insight').innerHTML = "No Asian coffee data available in current filter.";
+                    }
+
+                    // 9. NA Aroma Word Cloud
+                    const naData = data.filter(d => d.region === 'North America');
+                    const wordsText = naData.map(d=>d.aroma).join(' ').replace(/[,.\"]/g, '').toLowerCase().split(/\s+/);
+                    const wordCounts = {};
+                    const stopWords = ['and','in','cup','aroma','with','a','the','of'];
+                    wordsText.forEach(w => { if(w.length > 3 && !stopWords.includes(w)) wordCounts[w] = (wordCounts[w]||0)+1; });
+                    
+                    const wordsArray = Object.keys(wordCounts).map(key => ({text: key, size: 10 + wordCounts[key] * 3})).sort((a,b)=>b.size-a.size).slice(0, 50);
+                    
+                    const container = document.getElementById('chart-word-cloud');
+                    container.innerHTML = ''; 
+                    const width = container.clientWidth || 400;
+                    const height = container.clientHeight || 300;
+
+                    if(wordsArray.length > 0 && d3.layout) {
+                        const svg = d3.select("#chart-word-cloud").append("svg").attr("width", width).attr("height", height).append("g").attr("transform", `translate(${width/2},${height/2})`);
+                        const layout = d3.layout.cloud()
+                            .size([width, height])
+                            .words(wordsArray)
+                            .padding(5)
+                            .rotate(() => ~~(Math.random() * 2) * 90)
+                            .font("Inter")
+                            .fontSize(d => d.size)
+                            .on("end", draw);
+                        layout.start();
+
+                        function draw(words) {
+                            svg.selectAll("text").data(words).enter().append("text")
+                                .style("font-size", d => d.size + "px")
+                                .style("font-family", "Inter")
+                                .style("fill", () => colors.palette[Math.floor(Math.random() * colors.palette.length)])
+                                .attr("text-anchor", "middle")
+                                .attr("transform", d => `translate(${[d.x, d.y]})rotate(${d.rotate})`)
+                                .text(d => d.text);
+                        }
+                    } else {
+                        container.innerHTML = '<p style="text-align:center; padding-top: 50px;">Not enough data for word cloud</p>';
+                    }
+                },
+
+                // ---- PAGE 4: EXECUTIVE SUMMARY ----
+                renderPage4(data) {
+                    if(data.length === 0) {
+                        document.getElementById('exec-summary-content').innerHTML = "<p>No data available to generate summary.</p>";
+                        document.getElementById('recommendations-content').innerHTML = "";
+                        return;
+                    }
+
+                    // Dynamically calculate metrics
+                    const avgRating = (data.reduce((s, d) => s + d.rating, 0) / data.length).toFixed(1);
+                    const avgPrice = (data.reduce((s, d) => s + d.price, 0) / data.length).toFixed(2);
+                    
+                    const topCountryArr = App.DataEngine.aggregate(data, 'origin', 'rating', 'avg').filter(d=>d.count>2);
+                    const topCountry = topCountryArr.length > 0 ? topCountryArr[0] : App.DataEngine.aggregate(data, 'origin', 'rating', 'avg')[0];
+                    
+                    const topRoast = App.DataEngine.aggregate(data, 'roast', 'rating', 'avg')[0];
+                    
+                    const topBrandArr = App.DataEngine.aggregate(data, 'brand', 'rating', 'avg').filter(d=>d.count>1);
+                    const topBrand = topBrandArr.length > 0 ? topBrandArr[0] : App.DataEngine.aggregate(data, 'brand', 'rating', 'avg')[0];
+
+                    const summaryHTML = `
+                        <p>This organizational intelligence report analyzes a curated dataset of <strong>${data.length.toLocaleString()}</strong> coffee varieties. Across the evaluated metrics, the global average quality rating stands at <strong>${avgRating}/100</strong>, paired with a mean market price of <strong>$${avgPrice}</strong> per 100g.</p>
+                        <p>Geographic analysis reveals that beans sourced from <strong>${topCountry ? topCountry.label : 'N/A'}</strong> yield the highest consumer satisfaction levels, averaging an exceptional score of <strong>${topCountry ? topCountry.value.toFixed(1) : 'N/A'}</strong>.</p>
+                        <p>From a processing and manufacturing standpoint, <strong>${topRoast ? topRoast.label : 'N/A'}</strong> profiles dominate market preference, consistently outperforming other roast configurations.</p>
+                        <p>In terms of corporate performance, <strong>${topBrand ? topBrand.label : 'N/A'}</strong> leads the brand landscape, demonstrating superior quality control and market reception.</p>
+                    `;
+
+                    const recommendationsHTML = `
+                        <div class="rec-item">
+                            <i class="fa-solid fa-arrow-trend-up"></i>
+                            <div>
+                                <h4>Optimize Procurement Pipeline</h4>
+                                <p>Increase supply chain dependency and procurement quotas from <strong>${topCountry ? topCountry.label : 'top performing origins'}</strong>. Beans from this region exhibit lower variance and higher overall quality scores.</p>
+                            </div>
+                        </div>
+                        <div class="rec-item">
+                            <i class="fa-solid fa-fire-burner"></i>
+                            <div>
+                                <h4>Shift Production Focus</h4>
+                                <p>Reallocate roasting resources towards <strong>${topRoast ? topRoast.label : 'the highest-rated'}</strong> roasts. Phasing out lower-performing roast types will consolidate operational costs and improve average product rating.</p>
+                            </div>
+                        </div>
+                        <div class="rec-item">
+                            <i class="fa-solid fa-handshake"></i>
+                            <div>
+                                <h4>Strategic Retail Partnerships</h4>
+                                <p>Initiate B2B negotiations or exclusive distribution agreements with top-tier brands such as <strong>${topBrand ? topBrand.label : 'leading brands'}</strong> to elevate retail positioning and attract a premium demographic.</p>
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('exec-summary-content').innerHTML = summaryHTML;
+                    document.getElementById('recommendations-content').innerHTML = recommendationsHTML;
+                }
+            },
+
+            // =========================================================
+            //  EXPORT ENGINE (PDF & PPTX)
+            // =========================================================
+            ExportEngine: {
+                init() {
+                    document.getElementById('export-pdf').addEventListener('click', () => this.exportPDF());
+                    document.getElementById('export-ppt').addEventListener('click', () => this.exportPPTX());
+                },
+                async exportPDF() {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF('p', 'mm', 'a4');
+                    const page = document.querySelector('.page.active');
+                    
+                    const btn = document.getElementById('export-pdf');
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+
+                    try {
+                        const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: App.State.theme==='dark'?'#121212':'#f4f6f8' });
+                        const imgData = canvas.toDataURL('image/png');
+                        const imgProps = doc.getImageProperties(imgData);
+                        const pdfWidth = doc.internal.pageSize.getWidth();
+                        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                        
+                        doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                        doc.save(`BeanSight_Analytics_${new Date().getTime()}.pdf`);
+                    } catch (e) {
+                        alert('Error generating PDF.');
+                        console.error(e);
+                    } finally {
+                        btn.innerHTML = origHtml;
+                    }
+                },
+                async exportPPTX() {
+                    const btn = document.getElementById('export-ppt');
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+
+                    try {
+                        let pptx = new PptxGenJS();
+                        pptx.layout = 'LAYOUT_16x9';
+                        
+                        let slide = pptx.addSlide();
+                        slide.background = { color: App.State.theme==='dark'?'121212':'f4f6f8' };
+                        slide.addText(`BeanSight Analytics - ${document.getElementById('page-title').innerText}`, {
+                            x: 0.5, y: 0.5, w: '90%', h: 1, fontSize: 24, bold: true, color: App.State.theme==='dark'?'ece0d1':'2c3e50'
+                        });
+
+                        const page = document.querySelector('.page.active');
+                        const canvas = await html2canvas(page, { scale: 1 });
+                        const imgData = canvas.toDataURL('image/png');
+                        
+                        slide.addImage({ data: imgData, x: 0.5, y: 1.5, w: 9, h: 5.5 });
+                        
+                        pptx.writeFile({ fileName: `BeanSight_Export_${new Date().getTime()}.pptx` });
+                    } catch (e) {
+                        alert('Error generating PPTX.');
+                    } finally {
+                        btn.innerHTML = origHtml;
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            App.Init();
+        });
+
+        window.addEventListener('resize', () => {
+            if(App.State.rawData.length) {
+                clearTimeout(window.resizeTimer);
+                window.resizeTimer = setTimeout(() => App.RenderEngine.renderActivePage(), 300);
+            }
+        });
+
+    </script>
+</body>
+</html>
